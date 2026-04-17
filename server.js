@@ -52,8 +52,13 @@ if (ACCESS_PASSWORD) {
     const auth = req.headers['authorization'] || '';
     const b64 = auth.replace(/^Basic\s+/, '');
     let password = '';
-    try { password = Buffer.from(b64, 'base64').toString('utf8').split(':')[1] || ''; } catch (_) {}
-    if (password === ACCESS_PASSWORD) return next();
+    let username = '';
+    try {
+      const decoded = Buffer.from(b64, 'base64').toString('utf8');
+      username = decoded.split(':')[0] || '';
+      password = decoded.split(':')[1] || '';
+    } catch (_) {}
+    if (username === 'edgar' && password === ACCESS_PASSWORD) return next();
     res.set('WWW-Authenticate', 'Basic realm="DocReview"');
     res.status(401).send('Authentication required');
   });
