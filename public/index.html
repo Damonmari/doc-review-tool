@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Document Intelligence</title>
+<style>
+  :root {
+    --bg: #0d0d14; --surface: #13131c; --surface-2: #1a1a27; --surface-3: #21212f;
+    --border: #2a2a3e; --border-2: #363650; --text: #e2e2f0; --text-2: #9898b8;
+    --accent: #6366f1; --accent-2: #818cf8; --accent-glow: rgba(99,102,241,0.15);
+    --green: #22c55e; --amber: #f59e0b; --red: #ef4444;
+    --teal: #14b8a6; --purple: #a855f7; --radius: 10px; --radius-sm: 6px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; min-height: 100vh; display: flex; flex-direction: column; }
+
+  /* Header */
+  .header { display: flex; align-items: center; justify-content: space-between; padding: 14px 24px; border-bottom: 1px solid var(--border); background: var(--surface); position: sticky; top: 0; z-index: 100; }
+  .header-left { display: flex; align-items: center; gap: 10px; }
+  .header-icon { width: 32px; height: 32px; background: linear-gradient(135deg, var(--accent), #a855f7); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+  .header h1 { font-size: 17px; font-weight: 600; }
+  .header-sub { font-size: 12px; color: var(--text-2); margin-top: 1px; }
+  .btn-reset { background: transparent; border: 1px solid var(--border-2); color: var(--text-2); padding: 6px 14px; border-radius: var(--radius-sm); cursor: pointer; font-size: 13px; transition: all 0.15s; }
+  .btn-reset:hover { border-color: var(--red); color: var(--red); }
+
+  /* Main */
+  .main { flex: 1; padding: 24px; max-width: 1100px; margin: 0 auto; width: 100%; }
+
+  /* Upload zone */
+  #uploadZone { border: 2px dashed var(--border-2); border-radius: var(--radius); padding: 48px 24px; text-align: center; cursor: pointer; transition: all 0.2s; background: var(--surface); position: relative; }
+  #uploadZone:hover, #uploadZone.drag-over { border-color: var(--accent); background: var(--accent-glow); }
+  #uploadZone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+  .upload-icon { font-size: 40px; margin-bottom: 12px; }
+  .upload-title { font-size: 18px; font-weight: 600; margin-bottom: 6px; }
+  .upload-sub { color: var(--text-2); font-size: 13px; }
+  .upload-formats { margin-top: 16px; display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+  .format-tag { background: var(--surface-3); border: 1px solid var(--border); padding: 3px 10px; border-radius: 20px; font-size: 11px; color: var(--text-2); }
+
+  /* Queue bar */
+  #queueBar { display: none; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 16px; }
+  #queueBar.show { display: block; }
+  .queue-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+  .bar-btn { display: flex; align-items: center; gap: 7px; padding: 7px 16px; border-radius: var(--radius-sm); cursor: pointer; font-size: 13px; font-weight: 500; white-space: nowrap; transition: all 0.15s; border: none; }
+  .bar-btn-add { background: var(--surface-2); color: var(--text-2); border: 1px solid var(--border-2) !important; }
+  .bar-btn-add:hover { border-color: var(--accent-2) !important; color: var(--text); }
+  .bar-btn-analyze { background: var(--accent); color: #fff; font-size: 14px; padding: 9px 22px; }
+  .bar-btn-analyze:hover { opacity: 0.88; }
+  .bar-btn-analyze:disabled { opacity: 0.35; cursor: not-allowed; }
+  .bar-btn-combined { background: transparent; color: var(--teal); border: 1px solid var(--teal) !important; }
+  .bar-btn-combined:hover { background: rgba(20,184,166,0.1); }
+  .bar-btn-combined:disabled { opacity: 0.35; cursor: not-allowed; }
+  #queueBar label { cursor: pointer; }
+  #queueBar input[type=file] { display: none; }
+
+  /* Queue file list */
+  .queue-files { display: flex; flex-wrap: wrap; gap: 7px; }
+  .queue-chip { display: flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 20px; border: 1px solid var(--border-2); background: var(--surface-2); font-size: 12px; color: var(--text-2); }
+  .queue-chip .chip-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .queue-chip.queued .chip-dot { background: var(--amber); }
+  .queue-chip.done .chip-dot { background: var(--green); }
+  .queue-chip.done { color: var(--text); }
+
+  /* Expanded analyzing chip */
+  .queue-chip.analyzing { flex-direction: column; align-items: stretch; border-radius: var(--radius-sm); padding: 10px 14px; width: 100%; gap: 7px; color: var(--text); border-color: var(--accent); background: var(--accent-glow); }
+  .queue-chip.analyzing .chip-dot { background: var(--accent); animation: blink 0.8s infinite; }
+  .chip-name-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .chip-name-left { display: flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chip-status-label { font-size: 11px; color: var(--accent-2); white-space: nowrap; flex-shrink: 0; }
+  .chip-progress-track { height: 4px; background: var(--surface-3); border-radius: 2px; overflow: hidden; }
+  .chip-progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-2)); border-radius: 2px; width: 0%; transition: width 0.4s ease; }
+  @keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0.2; } }
+
+  /* Uploading spinner */
+  #uploadingState { display: none; text-align: center; padding: 32px; }
+  #uploadingState.show { display: block; }
+  .spinner { width: 36px; height: 36px; border: 3px solid var(--border-2); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 14px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .uploading-text { color: var(--text-2); font-size: 14px; }
+  .uploading-file { color: var(--accent-2); font-weight: 500; margin-top: 4px; font-size: 13px; }
+
+  /* Analyzing overlay */
+  #analyzingState { display: none; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px; text-align: center; margin-bottom: 16px; }
+  #analyzingState.show { display: block; }
+
+  /* File tabs */
+  #fileTabs { display: none; margin-bottom: 20px; }
+  #fileTabs.show { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .file-tab { display: flex; align-items: center; gap: 7px; padding: 6px 14px; border-radius: 20px; border: 1px solid var(--border-2); background: var(--surface); font-size: 12px; color: var(--text-2); cursor: pointer; transition: all 0.15s; }
+  .file-tab:hover { border-color: var(--accent-2); color: var(--text); }
+  .file-tab.active { border-color: var(--accent); background: var(--accent-glow); color: var(--accent-2); }
+  .file-tab.all-tab.active { border-color: var(--teal); background: rgba(20,184,166,0.1); color: var(--teal); }
+  .file-tab .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+  .file-tab.all-tab .dot { background: var(--teal); }
+
+  /* Analysis */
+  #analysisArea { display: none; }
+  #analysisArea.show { display: block; }
+  .card-label { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent-2); margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+  .card-label.teal { color: var(--teal); } .card-label.amber { color: var(--amber); } .card-label.purple { color: var(--purple); } .card-label.green { color: var(--green); }
+
+  .summary-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; margin-bottom: 16px; }
+  .summary-text { color: var(--text); line-height: 1.65; }
+  .key-points { margin-top: 12px; display: flex; flex-direction: column; gap: 5px; }
+  .key-point { display: flex; align-items: flex-start; gap: 8px; color: var(--text-2); font-size: 13px; line-height: 1.5; }
+  .key-point::before { content: '›'; color: var(--accent); flex-shrink: 0; margin-top: 1px; }
+
+  .results-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  @media (max-width: 680px) { .results-grid { grid-template-columns: 1fr; } }
+  .results-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; }
+  .results-card.empty { opacity: 0.5; }
+  .results-list { display: flex; flex-direction: column; gap: 10px; }
+  .empty-state { color: var(--text-2); font-size: 13px; text-align: center; padding: 14px 0; }
+
+  .date-item { display: flex; gap: 12px; align-items: flex-start; padding: 10px; background: var(--surface-2); border-radius: var(--radius-sm); border-left: 3px solid var(--accent); }
+  .date-badge { background: var(--surface-3); border: 1px solid var(--border-2); border-radius: var(--radius-sm); padding: 4px 8px; font-size: 11px; color: var(--accent-2); font-weight: 600; white-space: nowrap; min-width: 80px; text-align: center; flex-shrink: 0; }
+  .date-label { font-size: 13px; font-weight: 500; }
+  .date-desc { font-size: 12px; color: var(--text-2); margin-top: 2px; line-height: 1.4; }
+
+  .task-item { background: var(--surface-2); border-radius: var(--radius-sm); padding: 10px 12px; border-left: 3px solid var(--border-2); }
+  .task-item.High { border-left-color: var(--red); } .task-item.Medium { border-left-color: var(--amber); } .task-item.Low { border-left-color: var(--green); }
+  .task-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .task-title { font-size: 13px; font-weight: 500; }
+  .priority-badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px; flex-shrink: 0; }
+  .priority-badge.High { background: rgba(239,68,68,0.15); color: var(--red); }
+  .priority-badge.Medium { background: rgba(245,158,11,0.15); color: var(--amber); }
+  .priority-badge.Low { background: rgba(34,197,94,0.15); color: var(--green); }
+  .task-desc { font-size: 12px; color: var(--text-2); margin-top: 4px; line-height: 1.4; }
+  .task-due { font-size: 11px; color: var(--accent-2); margin-top: 4px; }
+
+  .feedback-card { background: var(--surface); border: 1px solid rgba(168,85,247,0.3); border-radius: var(--radius); padding: 16px 18px; margin-bottom: 16px; }
+  .feedback-text { color: var(--text); line-height: 1.7; font-size: 13.5px; }
+
+  .area-item { background: var(--surface-2); border-radius: var(--radius-sm); padding: 10px 12px; border-left: 3px solid var(--teal); }
+  .area-title { font-size: 13px; font-weight: 600; color: var(--teal); }
+  .area-desc { font-size: 12px; color: var(--text-2); margin-top: 3px; line-height: 1.45; }
+
+  .note-item { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; background: var(--surface-2); border-radius: var(--radius-sm); border-left: 3px solid var(--amber); }
+  .note-item::before { content: '!'; color: var(--amber); font-weight: 700; font-size: 11px; flex-shrink: 0; margin-top: 1px; }
+  .note-text { font-size: 12px; color: var(--text-2); line-height: 1.45; }
+
+  .highlights-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; margin-bottom: 16px; }
+  .highlight-item { background: var(--surface-2); border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 10px; border-left: 3px solid var(--green); }
+  .highlight-item:last-child { margin-bottom: 0; }
+  .highlight-title { font-size: 12px; font-weight: 700; color: var(--green); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 5px; }
+  .highlight-content { font-size: 13px; color: var(--text); background: var(--surface-3); border-radius: 4px; padding: 7px 10px; margin-bottom: 6px; border-left: 2px solid var(--border-2); font-style: italic; line-height: 1.5; }
+  .highlight-sig { font-size: 12px; color: var(--text-2); line-height: 1.4; }
+
+  /* Suggested Prompts */
+  #suggestedPromptsArea { display: none; margin-bottom: 20px; }
+  #suggestedPromptsArea.show { display: block; }
+  .prompts-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; }
+  .prompts-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .prompt-chip { background: var(--surface-2); border: 1px solid var(--border-2); border-radius: 20px; padding: 7px 14px; font-size: 12.5px; color: var(--text-2); cursor: pointer; transition: all 0.15s; text-align: left; }
+  .prompt-chip:hover { border-color: var(--accent); color: var(--text); background: var(--accent-glow); }
+
+  /* Mode selector */
+  #modeSelector { display: none; gap: 12px; margin-bottom: 20px; }
+  #modeSelector.show { display: flex; }
+  .mode-btn { flex: 1; padding: 14px; border-radius: var(--radius); border: 2px solid var(--border-2); background: var(--surface); color: var(--text-2); cursor: pointer; transition: all 0.2s; text-align: center; }
+  .mode-btn:hover { border-color: var(--accent); color: var(--text); }
+  .mode-btn.active { border-color: var(--accent); background: var(--accent-glow); color: var(--text); }
+  .mode-btn-icon { font-size: 24px; margin-bottom: 6px; }
+  .mode-btn-title { font-size: 14px; font-weight: 600; }
+  .mode-btn-sub { font-size: 12px; color: var(--text-2); margin-top: 2px; }
+
+  /* Chat */
+  #chatArea { display: none; }
+  #chatArea.show { display: flex; flex-direction: column; }
+  .chat-messages { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; min-height: 300px; max-height: 460px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; margin-bottom: 12px; }
+  .chat-msg { display: flex; gap: 10px; align-items: flex-start; }
+  .chat-msg.user { flex-direction: row-reverse; }
+  .msg-avatar { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+  .chat-msg.user .msg-avatar { background: var(--accent); }
+  .chat-msg.ai .msg-avatar { background: linear-gradient(135deg, #6366f1, #a855f7); }
+  .msg-bubble { max-width: 75%; padding: 10px 14px; border-radius: var(--radius); line-height: 1.6; font-size: 13.5px; }
+  .chat-msg.user .msg-bubble { background: var(--accent); color: #fff; border-bottom-right-radius: 3px; }
+  .chat-msg.ai .msg-bubble { background: var(--surface-2); border: 1px solid var(--border); color: var(--text); border-bottom-left-radius: 3px; }
+  .msg-bubble p { margin-bottom: 8px; } .msg-bubble p:last-child { margin-bottom: 0; }
+  .msg-bubble strong { color: var(--accent-2); }
+  .msg-bubble ul, .msg-bubble ol { margin: 6px 0 6px 18px; } .msg-bubble li { margin-bottom: 3px; }
+  .chat-thinking { display: flex; align-items: center; gap: 8px; color: var(--text-2); font-size: 13px; padding: 8px 0; }
+  .chat-thinking .dots { display: flex; gap: 4px; }
+  .chat-thinking .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: bounce 1s infinite; }
+  .chat-thinking .dot:nth-child(2) { animation-delay: 0.15s; } .chat-thinking .dot:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes bounce { 0%,80%,100% { transform: translateY(0); } 40% { transform: translateY(-6px); } }
+  .chat-input-row { display: flex; gap: 8px; align-items: flex-end; }
+  .chat-input { flex: 1; background: var(--surface); border: 1px solid var(--border-2); border-radius: var(--radius); padding: 11px 14px; color: var(--text); font-size: 14px; resize: none; font-family: inherit; line-height: 1.5; transition: border-color 0.15s; min-height: 46px; max-height: 120px; overflow-y: auto; }
+  .chat-input:focus { outline: none; border-color: var(--accent); }
+  .chat-input::placeholder { color: var(--text-2); }
+  .btn-send { background: var(--accent); border: none; color: #fff; width: 46px; height: 46px; border-radius: var(--radius); cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; transition: opacity 0.15s; flex-shrink: 0; }
+  .btn-send:hover { opacity: 0.88; } .btn-send:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* Voice */
+  #voiceArea { display: none; }
+  #voiceArea.show { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .voice-status { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 24px; width: 100%; text-align: center; }
+  .voice-status-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent-2); margin-bottom: 6px; font-weight: 600; }
+  .voice-status-text { color: var(--text-2); font-size: 14px; }
+  .voice-status-text.active { color: var(--text); }
+  .voice-controls { display: flex; align-items: center; gap: 20px; }
+  .mic-btn { width: 90px; height: 90px; border-radius: 50%; border: none; background: linear-gradient(135deg, var(--accent), #a855f7); color: #fff; font-size: 34px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; flex-shrink: 0; }
+  .mic-btn:hover { transform: scale(1.05); }
+  .mic-btn.listening { animation: pulse 1.5s infinite; background: linear-gradient(135deg, #ef4444, #f97316); }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(239,68,68,0.4); } 70% { box-shadow: 0 0 0 20px rgba(239,68,68,0); } 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); } }
+  .mic-btn-label { font-size: 12px; color: var(--text-2); text-align: center; margin-top: 6px; }
+  .mic-wrap { display: flex; flex-direction: column; align-items: center; }
+
+  /* Stop button — shown while TTS is playing */
+  .btn-stop-tts { display: none; background: var(--red); border: none; color: #fff; padding: 10px 22px; border-radius: var(--radius-sm); font-size: 14px; font-weight: 600; cursor: pointer; transition: opacity 0.15s; white-space: nowrap; }
+  .btn-stop-tts.show { display: flex; align-items: center; gap: 8px; }
+  .btn-stop-tts:hover { opacity: 0.85; }
+
+  .voice-transcript { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 18px; width: 100%; min-height: 56px; }
+  .transcript-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-2); margin-bottom: 6px; }
+  .transcript-text { color: var(--text); font-size: 14px; line-height: 1.6; font-style: italic; }
+  .transcript-text.interim { color: var(--text-2); }
+
+  .voice-response { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 20px; width: 100%; display: none; }
+  .voice-response.show { display: block; }
+  .response-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent-2); margin-bottom: 8px; font-weight: 600; }
+  .response-text { color: var(--text); font-size: 14px; line-height: 1.65; }
+  .voice-audio-playing { display: none; align-items: center; gap: 8px; color: var(--accent-2); font-size: 13px; margin-top: 10px; }
+  .voice-audio-playing.show { display: flex; }
+  .audio-bars { display: flex; gap: 3px; align-items: flex-end; height: 16px; }
+  .audio-bar { width: 3px; background: var(--accent); border-radius: 2px; animation: audioBar 0.6s ease-in-out infinite alternate; }
+  .audio-bar:nth-child(1) { height: 6px; animation-delay: 0s; } .audio-bar:nth-child(2) { height: 10px; animation-delay: 0.1s; }
+  .audio-bar:nth-child(3) { height: 14px; animation-delay: 0.2s; } .audio-bar:nth-child(4) { height: 10px; animation-delay: 0.3s; }
+  .audio-bar:nth-child(5) { height: 6px; animation-delay: 0.4s; }
+  @keyframes audioBar { from { opacity: 0.4; transform: scaleY(0.7); } to { opacity: 1; transform: scaleY(1); } }
+
+  /* Toast */
+  #toast { position: fixed; bottom: 24px; right: 24px; background: var(--surface-2); border: 1px solid var(--border-2); border-radius: var(--radius); padding: 12px 18px; color: var(--text); font-size: 13px; transform: translateY(80px); opacity: 0; transition: all 0.3s; pointer-events: none; z-index: 999; max-width: 340px; }
+  #toast.show { transform: translateY(0); opacity: 1; }
+  #toast.error { border-color: var(--red); color: var(--red); }
+  #toast.success { border-color: var(--green); color: var(--green); }
+
+  ::-webkit-scrollbar { width: 5px; height: 5px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <div class="header-icon">📄</div>
+    <div>
+      <h1>Document Intelligence</h1>
+      <div class="header-sub">Upload, analyze, and converse with your documents</div>
+    </div>
+  </div>
+  <button class="btn-reset" onclick="resetSession()">↺ Start Over</button>
+</div>
+
+<div class="main">
+
+  <!-- Initial upload zone -->
+  <div id="uploadZone" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
+    <input type="file" id="fileInput" multiple onchange="onFileSelect(event)">
+    <div class="upload-icon">📂</div>
+    <div class="upload-title">Drop files here or click to upload</div>
+    <div class="upload-sub">Add all your files first, then press <strong>Start Analyzing</strong> when you're ready</div>
+    <div class="upload-formats">
+      <span class="format-tag">PDF</span><span class="format-tag">DOCX</span>
+      <span class="format-tag">TXT</span><span class="format-tag">XLSX</span>
+      <span class="format-tag">CSV</span><span class="format-tag">Images</span>
+      <span class="format-tag">MP4</span><span class="format-tag">MOV</span>
+      <span class="format-tag">AVI</span><span class="format-tag">MKV</span>
+      <span class="format-tag">WEBM</span><span class="format-tag">+ more</span>
+    </div>
+  </div>
+
+  <!-- Quick upload spinner (file queueing is fast) -->
+  <div id="uploadingState">
+    <div class="spinner"></div>
+    <div class="uploading-text">Queuing file…</div>
+    <div class="uploading-file" id="uploadingFileName"></div>
+  </div>
+
+  <!-- Analysis progress -->
+  <div id="analyzingState">
+    <div class="spinner"></div>
+    <div class="uploading-text" id="analyzingText">Analyzing with Opus…</div>
+    <div class="uploading-file" id="analyzingFileName"></div>
+  </div>
+
+  <!-- Queue bar: file chips + action buttons -->
+  <div id="queueBar">
+    <div class="queue-top">
+      <label class="bar-btn bar-btn-add">
+        <input type="file" id="fileInputBar" multiple onchange="onFileSelect(event)">
+        ＋ Add More Files
+      </label>
+      <button class="bar-btn bar-btn-analyze" id="startAnalysisBtn" onclick="startAnalysis()" disabled>
+        ▶ Start Analyzing
+      </button>
+      <button class="bar-btn bar-btn-combined" id="analyzeAllBtn" onclick="runAnalyzeAll()" disabled style="margin-left:auto">
+        ⊞ Analyze All Together
+      </button>
+    </div>
+    <div class="queue-files" id="queueFiles"></div>
+  </div>
+
+  <!-- File tabs (shown after analysis) -->
+  <div id="fileTabs"></div>
+
+  <!-- Analysis results -->
+  <div id="analysisArea">
+    <div class="summary-card">
+      <div class="card-label">✦ Summary</div>
+      <div class="summary-text" id="summaryText"></div>
+      <div class="key-points" id="keyPoints"></div>
+    </div>
+    <div class="results-grid">
+      <div class="results-card" id="datesCard">
+        <div class="card-label">📅 Important Dates</div>
+        <div class="results-list" id="datesList"></div>
+      </div>
+      <div class="results-card" id="tasksCard">
+        <div class="card-label">✅ Action Items</div>
+        <div class="results-list" id="tasksList"></div>
+      </div>
+    </div>
+    <div class="feedback-card" id="feedbackCard">
+      <div class="card-label purple">◈ Feedback</div>
+      <div class="feedback-text" id="feedbackText"></div>
+    </div>
+    <div class="results-grid">
+      <div class="results-card" id="areasCard">
+        <div class="card-label teal">◉ Areas of Interest</div>
+        <div class="results-list" id="areasList"></div>
+      </div>
+      <div class="results-card" id="notesCard">
+        <div class="card-label amber">⚑ Things to Note</div>
+        <div class="results-list" id="notesList"></div>
+      </div>
+    </div>
+    <div class="highlights-card" id="highlightsCard">
+      <div class="card-label green">★ Highlights</div>
+      <div id="highlightsList"></div>
+    </div>
+  </div>
+
+  <!-- Suggested Prompts -->
+  <div id="suggestedPromptsArea">
+    <div class="prompts-card">
+      <div class="card-label">💡 Suggested Questions</div>
+      <div class="prompts-grid" id="promptsGrid"></div>
+    </div>
+  </div>
+
+  <!-- Mode selector -->
+  <div id="modeSelector">
+    <div class="mode-btn" id="chatModeBtn" onclick="setMode('chat')">
+      <div class="mode-btn-icon">💬</div>
+      <div class="mode-btn-title">Chat</div>
+      <div class="mode-btn-sub">Ask questions via text</div>
+    </div>
+    <div class="mode-btn" id="voiceModeBtn" onclick="setMode('voice')">
+      <div class="mode-btn-icon">🎙️</div>
+      <div class="mode-btn-title">Voice</div>
+      <div class="mode-btn-sub">Speak and listen to answers</div>
+    </div>
+  </div>
+
+  <!-- Chat -->
+  <div id="chatArea">
+    <div class="chat-messages" id="chatMessages">
+      <div class="chat-msg ai">
+        <div class="msg-avatar">🤖</div>
+        <div class="msg-bubble">Hey Edgar — I've gone through the document. Ask me anything, or pick one of the suggested questions above to get started.</div>
+      </div>
+    </div>
+    <div class="chat-input-row">
+      <textarea class="chat-input" id="chatInput" placeholder="Ask about your document…" rows="1"
+        onkeydown="onChatKey(event)" oninput="autoResize(this)"></textarea>
+      <button class="btn-send" id="sendBtn" onclick="sendChat()">↑</button>
+    </div>
+  </div>
+
+  <!-- Voice -->
+  <div id="voiceArea">
+    <div class="voice-status" style="width:100%">
+      <div class="voice-status-label">Status</div>
+      <div class="voice-status-text" id="voiceStatusText">Press the microphone and ask your question, Edgar</div>
+    </div>
+
+    <div class="voice-controls">
+      <div class="mic-wrap">
+        <button class="mic-btn" id="micBtn" onclick="toggleMic()">🎙️</button>
+        <div class="mic-btn-label" id="micLabel">Tap to speak</div>
+      </div>
+      <!-- Stop TTS button — visible only while speaking -->
+      <button class="btn-stop-tts" id="stopTtsBtn" onclick="stopAudio()">
+        ⏹ Stop
+      </button>
+    </div>
+
+    <div class="voice-transcript" id="voiceTranscript" style="display:none; width:100%">
+      <div class="transcript-label">You said</div>
+      <div class="transcript-text" id="transcriptText"></div>
+    </div>
+
+    <div class="voice-response" id="voiceResponse" style="width:100%">
+      <div class="response-label">Response</div>
+      <div class="response-text" id="responseText"></div>
+      <div class="voice-audio-playing" id="audioPlaying">
+        <div class="audio-bars">
+          <div class="audio-bar"></div><div class="audio-bar"></div>
+          <div class="audio-bar"></div><div class="audio-bar"></div>
+          <div class="audio-bar"></div>
+        </div>
+        Speaking…
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ─── State ─────────────────────────────────────────────────────────────────
+let sessionId = crypto.randomUUID();
+let docs = [];           // { fileName, status:'queued'|'done', analysis }
+let combinedAnalysis = null;
+let activeDocIndex = -1;
+let currentMode = null;
+let isUploading = false;
+let isAnalyzing = false;
+let recognition = null;
+let isListening = false;
+let finalTranscript = '';
+let currentAudio = null;
+
+// ─── Helpers ───────────────────────────────────────────────────────────────
+function toast(msg, type = '') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'show' + (type ? ' ' + type : '');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.className = '', 4000);
+}
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
+
+function esc(str) {
+  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function simpleMarkdown(text) {
+  return String(text || '')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g,'<em>$1</em>')
+    .replace(/`(.+?)`/g,'<code>$1</code>')
+    .replace(/^#{1,3}\s+(.+)$/gm,'<strong>$1</strong>')
+    .replace(/^[-•]\s+(.+)$/gm,'<li>$1</li>')
+    .replace(/(<li>[\s\S]*?<\/li>)/g,'<ul>$1</ul>')
+    .replace(/\n\n/g,'</p><p>')
+    .replace(/^(?!<[a-z])(.+)$/gm, m => `<p>${m}</p>`);
+}
+
+// ─── Upload (queue only — no analysis yet) ────────────────────────────────
+function onDragOver(e) { e.preventDefault(); document.getElementById('uploadZone').classList.add('drag-over'); }
+function onDragLeave() { document.getElementById('uploadZone').classList.remove('drag-over'); }
+function onDrop(e) { e.preventDefault(); document.getElementById('uploadZone').classList.remove('drag-over'); processFiles(e.dataTransfer.files); }
+function onFileSelect(e) { processFiles(e.target.files); e.target.value = ''; }
+
+async function processFiles(files) {
+  if (!files || !files.length) return;
+  for (const file of files) await queueFile(file);
+}
+
+async function queueFile(file) {
+  if (isUploading) { toast('Still uploading, one moment…', 'error'); return; }
+  isUploading = true;
+
+  document.getElementById('uploadZone').style.display = 'none';
+  document.getElementById('uploadingState').classList.add('show');
+  document.getElementById('uploadingFileName').textContent = file.name;
+  document.getElementById('queueBar').classList.remove('show');
+
+  const form = new FormData();
+  form.append('file', file);
+  form.append('sessionId', sessionId);
+
+  try {
+    const res = await fetch('/api/upload', { method: 'POST', body: form });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Upload failed');
+
+    docs.push({ fileName: data.fileName, status: 'queued', analysis: null });
+    renderQueueBar();
+  } catch (e) {
+    toast('Error: ' + e.message, 'error');
+    if (docs.length === 0) document.getElementById('uploadZone').style.display = '';
+  } finally {
+    document.getElementById('uploadingState').classList.remove('show');
+    document.getElementById('uploadZone').style.display = '';   // restore drop zone
+    document.getElementById('queueBar').classList.add('show');
+    isUploading = false;
+  }
+}
+
+function renderQueueBar() {
+  const files = document.getElementById('queueFiles');
+  files.innerHTML = docs.map((d, i) => {
+    const name = esc(d.fileName.length > 40 ? d.fileName.slice(0,38)+'…' : d.fileName);
+    if (d.status === 'analyzing') {
+      return `<div class="queue-chip analyzing" id="chip_${i}">
+        <div class="chip-name-row">
+          <div class="chip-name-left"><div class="chip-dot"></div>${name}</div>
+          <span class="chip-status-label" id="chip_status_${i}">Starting…</span>
+        </div>
+        <div class="chip-progress-track"><div class="chip-progress-fill" id="chip_bar_${i}"></div></div>
+      </div>`;
+    }
+    return `<div class="queue-chip ${d.status}" id="chip_${i}">
+      <div class="chip-dot"></div>${esc(d.fileName.length > 32 ? d.fileName.slice(0,30)+'…' : d.fileName)}
+    </div>`;
+  }).join('');
+
+  const hasPending = docs.some(d => d.status === 'queued');
+  document.getElementById('startAnalysisBtn').disabled = !hasPending || isAnalyzing;
+  document.getElementById('analyzeAllBtn').disabled = docs.filter(d => d.status === 'done').length < 2 || isAnalyzing;
+}
+
+// ─── Start Analysis ────────────────────────────────────────────────────────
+async function startAnalysis() {
+  if (isAnalyzing) return;
+  const pending = docs.filter(d => d.status === 'queued');
+  if (!pending.length) return;
+
+  isAnalyzing = true;
+  document.getElementById('startAnalysisBtn').disabled = true;
+
+  for (const doc of pending) {
+    const idx = docs.indexOf(doc);
+    doc.status = 'analyzing';
+    renderQueueBar();
+
+    const timer = startFakeProgress(idx);
+
+    try {
+      const res = await fetch('/api/analyze-one', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId, fileName: doc.fileName })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Analysis failed');
+
+      clearInterval(timer);
+      const bar = document.getElementById(`chip_bar_${idx}`);
+      const status = document.getElementById(`chip_status_${idx}`);
+      if (bar) bar.style.width = '100%';
+      if (status) status.textContent = 'Done ✓';
+
+      doc.status = 'done';
+      doc.analysis = data.analysis;
+
+      // Show first completed doc immediately
+      if (activeDocIndex === -1) {
+        activeDocIndex = idx;
+        renderFileTabs();
+        renderAnalysis(doc.analysis);
+        renderSuggestedPrompts((doc.analysis || {}).suggestedPrompts || []);
+        document.getElementById('analysisArea').classList.add('show');
+        document.getElementById('modeSelector').classList.add('show');
+      } else {
+        renderFileTabs();
+      }
+
+      // Brief pause so 100% is visible before chip collapses to green dot
+      await new Promise(r => setTimeout(r, 700));
+      renderQueueBar();
+
+    } catch (e) {
+      clearInterval(timer);
+      doc.status = 'queued';
+      renderQueueBar();
+      toast('Failed: ' + doc.fileName + ' — ' + e.message, 'error');
+    }
+  }
+
+  isAnalyzing = false;
+  renderQueueBar();
+  const doneCount = docs.filter(d => d.status === 'done').length;
+  if (doneCount) toast(`Analysis complete — ${doneCount} document${doneCount !== 1 ? 's' : ''}`, 'success');
+}
+
+function startFakeProgress(docIdx) {
+  let pct = 0;
+  return setInterval(() => {
+    pct += (85 - pct) * 0.035; // asymptote toward 85%, never reaches it
+    const floor = Math.floor(pct);
+    const bar = document.getElementById(`chip_bar_${docIdx}`);
+    const status = document.getElementById(`chip_status_${docIdx}`);
+    if (bar) bar.style.width = floor + '%';
+    if (status) status.textContent = getProgressLabel(floor);
+  }, 400);
+}
+
+function getProgressLabel(pct) {
+  if (pct < 15) return 'Reading…';
+  if (pct < 35) return 'Parsing…';
+  if (pct < 55) return 'Analyzing…';
+  if (pct < 70) return 'Extracting…';
+  if (pct < 82) return 'Finishing…';
+  return 'Almost done…';
+}
+
+// ─── Analyze All Together ──────────────────────────────────────────────────
+async function runAnalyzeAll() {
+  if (isAnalyzing || docs.filter(d => d.status === 'done').length < 2) return;
+  isAnalyzing = true;
+
+  document.getElementById('queueBar').classList.remove('show');
+  document.getElementById('analyzingState').classList.add('show');
+  document.getElementById('analyzingText').textContent = 'Running combined analysis across all documents…';
+  document.getElementById('analyzingFileName').textContent = 'Opus is reading everything together';
+  document.getElementById('analysisArea').classList.remove('show');
+  document.getElementById('suggestedPromptsArea').classList.remove('show');
+
+  try {
+    const res = await fetch('/api/analyze-all', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Combined analysis failed');
+
+    combinedAnalysis = data.analysis;
+    activeDocIndex = -1;
+    renderFileTabs();
+    renderAnalysis(combinedAnalysis);
+    renderSuggestedPrompts(combinedAnalysis.suggestedPrompts || []);
+    document.getElementById('analysisArea').classList.add('show');
+    toast(`Combined analysis of ${data.docCount} documents complete`, 'success');
+  } catch (e) {
+    toast('Error: ' + e.message, 'error');
+  } finally {
+    document.getElementById('analyzingState').classList.remove('show');
+    document.getElementById('queueBar').classList.add('show');
+    isAnalyzing = false;
+    renderQueueBar();
+  }
+}
+
+// ─── Render ────────────────────────────────────────────────────────────────
+function renderFileTabs() {
+  const el = document.getElementById('fileTabs');
+  let html = '';
+  if (combinedAnalysis) {
+    html += `<div class="file-tab all-tab ${activeDocIndex===-1?'active':''}" onclick="switchDoc(-1)"><div class="dot"></div>All Documents</div>`;
+  }
+  html += docs.filter(d => d.status === 'done').map((d, i) => {
+    const realIdx = docs.indexOf(d);
+    return `<div class="file-tab ${realIdx===activeDocIndex?'active':''}" onclick="switchDoc(${realIdx})"><div class="dot"></div>${esc(d.fileName.length>28?d.fileName.slice(0,26)+'…':d.fileName)}</div>`;
+  }).join('');
+  el.innerHTML = html;
+  el.classList.toggle('show', docs.some(d => d.status === 'done') || !!combinedAnalysis);
+}
+
+function switchDoc(i) {
+  activeDocIndex = i;
+  renderFileTabs();
+  const analysis = i === -1 ? combinedAnalysis : (docs[i] || {}).analysis;
+  if (analysis) { renderAnalysis(analysis); renderSuggestedPrompts(analysis.suggestedPrompts || []); }
+}
+
+function renderAnalysis(a) {
+  if (!a) return;
+  document.getElementById('summaryText').textContent = a.summary || 'No summary available.';
+  document.getElementById('keyPoints').innerHTML = (a.keyPoints||[]).map(p=>`<div class="key-point">${esc(p)}</div>`).join('');
+
+  const datesList = document.getElementById('datesList');
+  if (a.dates && a.dates.length) {
+    document.getElementById('datesCard').classList.remove('empty');
+    datesList.innerHTML = a.dates.map(d=>`<div class="date-item"><div class="date-badge">${esc(d.date||'—')}</div><div><div class="date-label">${esc(d.label||'')}</div>${d.description?`<div class="date-desc">${esc(d.description)}</div>`:''}</div></div>`).join('');
+  } else { document.getElementById('datesCard').classList.add('empty'); datesList.innerHTML = '<div class="empty-state">No dates found</div>'; }
+
+  const tasksList = document.getElementById('tasksList');
+  if (a.tasks && a.tasks.length) {
+    document.getElementById('tasksCard').classList.remove('empty');
+    tasksList.innerHTML = a.tasks.map(t=>`<div class="task-item ${esc(t.priority||'Medium')}"><div class="task-header"><div class="task-title">${esc(t.title||'')}</div><span class="priority-badge ${esc(t.priority||'Medium')}">${esc(t.priority||'Medium')}</span></div>${t.description?`<div class="task-desc">${esc(t.description)}</div>`:''}${t.dueDate?`<div class="task-due">📅 Due: ${esc(t.dueDate)}</div>`:''}</div>`).join('');
+  } else { document.getElementById('tasksCard').classList.add('empty'); tasksList.innerHTML = '<div class="empty-state">No action items found</div>'; }
+
+  const fb = document.getElementById('feedbackCard');
+  if (a.feedback) { fb.style.display=''; document.getElementById('feedbackText').textContent = a.feedback; }
+  else fb.style.display = 'none';
+
+  const areasList = document.getElementById('areasList');
+  if (a.areasOfInterest && a.areasOfInterest.length) {
+    document.getElementById('areasCard').classList.remove('empty');
+    areasList.innerHTML = a.areasOfInterest.map(ar=>`<div class="area-item"><div class="area-title">${esc(ar.title||'')}</div>${ar.description?`<div class="area-desc">${esc(ar.description)}</div>`:''}</div>`).join('');
+  } else { document.getElementById('areasCard').classList.add('empty'); areasList.innerHTML = '<div class="empty-state">None identified</div>'; }
+
+  const notesList = document.getElementById('notesList');
+  if (a.thingsToNote && a.thingsToNote.length) {
+    document.getElementById('notesCard').classList.remove('empty');
+    notesList.innerHTML = a.thingsToNote.map(n=>`<div class="note-item"><div class="note-text">${esc(n)}</div></div>`).join('');
+  } else { document.getElementById('notesCard').classList.add('empty'); notesList.innerHTML = '<div class="empty-state">Nothing to flag</div>'; }
+
+  const hl = document.getElementById('highlightsList');
+  const hlCard = document.getElementById('highlightsCard');
+  if (a.highlights && a.highlights.length) {
+    hlCard.style.display='';
+    hl.innerHTML = a.highlights.map(h=>`<div class="highlight-item"><div class="highlight-title">${esc(h.title||'Highlight')}</div><div class="highlight-content">${esc(h.content||'')}</div>${h.significance?`<div class="highlight-sig">${esc(h.significance)}</div>`:''}</div>`).join('');
+  } else hlCard.style.display = 'none';
+}
+
+function renderSuggestedPrompts(prompts) {
+  const area = document.getElementById('suggestedPromptsArea');
+  const grid = document.getElementById('promptsGrid');
+  if (!prompts || !prompts.length) { area.classList.remove('show'); return; }
+  grid.innerHTML = prompts.map(p=>`<button class="prompt-chip" onclick="usePrompt(${JSON.stringify(p)})">${esc(p)}</button>`).join('');
+  area.classList.add('show');
+  document.getElementById('modeSelector').classList.add('show');
+}
+
+function usePrompt(text) {
+  if (currentMode === 'voice') { handleVoiceInput(text); }
+  else { setMode('chat'); const inp = document.getElementById('chatInput'); inp.value = text; autoResize(inp); inp.focus(); }
+}
+
+// ─── Mode ──────────────────────────────────────────────────────────────────
+function setMode(mode) {
+  currentMode = mode;
+  document.getElementById('chatModeBtn').classList.toggle('active', mode==='chat');
+  document.getElementById('voiceModeBtn').classList.toggle('active', mode==='voice');
+  document.getElementById('chatArea').classList.toggle('show', mode==='chat');
+  document.getElementById('voiceArea').classList.toggle('show', mode==='voice');
+  if (mode==='chat') document.getElementById('chatInput').focus();
+  if (mode==='voice') initVoice();
+}
+
+// ─── Chat ──────────────────────────────────────────────────────────────────
+function onChatKey(e) { if (e.key==='Enter'&&!e.shiftKey) { e.preventDefault(); sendChat(); } }
+
+async function sendChat() {
+  const input = document.getElementById('chatInput');
+  const msg = input.value.trim();
+  if (!msg || isAnalyzing) return;
+  appendChatMsg('user', msg);
+  input.value = ''; input.style.height = 'auto';
+  document.getElementById('sendBtn').disabled = true;
+
+  const thinkEl = appendThinking();
+  try {
+    const res = await fetch('/api/chat', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({sessionId, message:msg}) });
+    const data = await res.json();
+    thinkEl.remove();
+    if (!res.ok) throw new Error(data.error||'Chat failed');
+    appendChatMsg('ai', data.answer);
+  } catch(e) { thinkEl.remove(); appendChatMsg('ai','Sorry, something went wrong: '+e.message); }
+  finally { document.getElementById('sendBtn').disabled = false; }
+}
+
+function appendChatMsg(role, text) {
+  const msgs = document.getElementById('chatMessages');
+  const div = document.createElement('div');
+  div.className = 'chat-msg ' + role;
+  div.innerHTML = `<div class="msg-avatar">${role==='user'?'👤':'🤖'}</div><div class="msg-bubble">${simpleMarkdown(text)}</div>`;
+  msgs.appendChild(div); msgs.scrollTop = msgs.scrollHeight; return div;
+}
+
+function appendThinking() {
+  const msgs = document.getElementById('chatMessages');
+  const div = document.createElement('div');
+  div.className = 'chat-thinking';
+  div.innerHTML = `<div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div> Thinking…`;
+  msgs.appendChild(div); msgs.scrollTop = msgs.scrollHeight; return div;
+}
+
+// ─── Voice ─────────────────────────────────────────────────────────────────
+function initVoice() {
+  if (recognition) return;
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    document.getElementById('voiceStatusText').textContent = 'Voice input requires Chrome or Edge.';
+    document.getElementById('micBtn').disabled = true; return;
+  }
+  recognition = new SR();
+  recognition.continuous = true;      // keep listening — don't cut off
+  recognition.interimResults = true;
+  recognition.lang = 'en-US';
+  recognition.maxAlternatives = 1;
+
+  recognition.onstart = () => { isListening = true; setVoiceState('listening'); };
+
+  recognition.onresult = (e) => {
+    let interim = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      if (e.results[i].isFinal) {
+        finalTranscript += e.results[i][0].transcript + ' ';
+      } else {
+        interim += e.results[i][0].transcript;
+      }
+    }
+    const display = (finalTranscript + interim).trim();
+    if (display) {
+      document.getElementById('voiceTranscript').style.display = '';
+      document.getElementById('transcriptText').textContent = display;
+      document.getElementById('transcriptText').className = 'transcript-text' + (interim ? ' interim' : '');
+    }
+  };
+
+  recognition.onerror = (e) => {
+    if (e.error === 'no-speech') return; // ignore — continuous mode fires this often
+    toast('Voice error: ' + e.error, 'error');
+    setVoiceState('idle');
+  };
+
+  // continuous mode: onend fires if recognition stops unexpectedly — restart it
+  recognition.onend = () => {
+    if (isListening) {
+      try { recognition.start(); } catch(_) {} // restart if still in listening state
+    }
+  };
+}
+
+function toggleMic() {
+  initVoice();
+  if (!recognition) return;
+  if (isListening) {
+    // Stop and submit whatever was captured
+    isListening = false;
+    recognition.stop();
+    const text = finalTranscript.trim();
+    finalTranscript = '';
+    if (text) {
+      setVoiceState('processing');
+      handleVoiceInput(text);
+    } else {
+      setVoiceState('idle');
+    }
+  } else {
+    stopAudio();
+    finalTranscript = '';
+    recognition.start();
+  }
+}
+
+function setVoiceState(state) {
+  const btn = document.getElementById('micBtn');
+  const label = document.getElementById('micLabel');
+  const statusText = document.getElementById('voiceStatusText');
+  if (state === 'listening') {
+    btn.classList.add('listening'); btn.textContent = '⏹';
+    label.textContent = 'Tap to send';
+    statusText.textContent = 'Listening, Edgar… tap again when done';
+    statusText.className = 'voice-status-text active';
+  } else if (state === 'processing') {
+    btn.classList.remove('listening'); btn.textContent = '⌛';
+    label.textContent = 'Processing…';
+    statusText.textContent = 'On it…';
+    statusText.className = 'voice-status-text active';
+  } else {
+    btn.classList.remove('listening'); btn.textContent = '🎙️';
+    label.textContent = 'Tap to speak';
+    statusText.textContent = 'Press the microphone and ask your question, Edgar';
+    statusText.className = 'voice-status-text';
+    isListening = false;
+  }
+}
+
+async function handleVoiceInput(text) {
+  if (!text) return;
+  setVoiceState('processing');
+  try {
+    const res = await fetch('/api/chat', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({sessionId, message:text}) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error||'Chat failed');
+    document.getElementById('responseText').textContent = data.answer;
+    document.getElementById('voiceResponse').classList.add('show');
+    setVoiceState('idle');
+    await speakText(data.answer);
+  } catch(e) { toast('Error: '+e.message,'error'); setVoiceState('idle'); }
+}
+
+async function speakText(text) {
+  const audioPlaying = document.getElementById('audioPlaying');
+  const stopBtn = document.getElementById('stopTtsBtn');
+  audioPlaying.classList.add('show');
+  stopBtn.classList.add('show');
+  try {
+    const res = await fetch('/api/tts', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({text}) });
+    if (!res.ok) throw new Error('TTS failed');
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    currentAudio = new Audio(url);
+    currentAudio.onended = () => {
+      audioPlaying.classList.remove('show');
+      stopBtn.classList.remove('show');
+      URL.revokeObjectURL(url);
+      currentAudio = null;
+    };
+    await currentAudio.play();
+  } catch(e) {
+    audioPlaying.classList.remove('show');
+    stopBtn.classList.remove('show');
+    console.error('TTS error:', e.message);
+  }
+}
+
+function stopAudio() {
+  if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+  document.getElementById('audioPlaying').classList.remove('show');
+  document.getElementById('stopTtsBtn').classList.remove('show');
+}
+
+// ─── Reset ─────────────────────────────────────────────────────────────────
+async function resetSession() {
+  stopAudio();
+  if (isListening) { isListening = false; try { recognition && recognition.stop(); } catch(_) {} }
+  recognition = null; finalTranscript = '';
+
+  await fetch('/api/reset', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({sessionId}) }).catch(()=>{});
+
+  sessionId = crypto.randomUUID();
+  docs = []; combinedAnalysis = null; activeDocIndex = -1;
+  currentMode = null; isUploading = false; isAnalyzing = false;
+
+  ['uploadBar','fileTabs','analysisArea','suggestedPromptsArea','modeSelector','chatArea','voiceArea']
+    .forEach(id => { const el = document.getElementById(id); el.classList.remove('show'); if(id==='uploadBar') el.classList.remove('show'); });
+  document.getElementById('queueBar').classList.remove('show');
+  document.getElementById('uploadZone').style.display = '';
+  document.getElementById('chatModeBtn').classList.remove('active');
+  document.getElementById('voiceModeBtn').classList.remove('active');
+  document.getElementById('voiceResponse').classList.remove('show');
+  document.getElementById('voiceTranscript').style.display = 'none';
+  document.getElementById('voiceStatusText').textContent = 'Press the microphone and ask your question, Edgar';
+  document.getElementById('analyzingState').classList.remove('show');
+  document.getElementById('chatMessages').innerHTML = `<div class="chat-msg ai"><div class="msg-avatar">🤖</div><div class="msg-bubble">Hey Edgar — I've gone through the document. Ask me anything, or pick one of the suggested questions above to get started.</div></div>`;
+  toast('Session reset');
+}
+</script>
+</body>
+</html>
